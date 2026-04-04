@@ -40,19 +40,19 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
     function unpause() public onlyOwner { _unpause(); }
 
     function mint(address to, uint256 amount) public onlyOwner {
-        require(totalSupply() + amount <= MAX_SUPPLY, "Max supply asiliyor");
+        require(totalSupply() + amount <= MAX_SUPPLY, "Max supply exceeded");
         _mint(to, amount);
     }
 
     function transferWithLock(address to, uint256 amount, uint256 unlockTime) public onlyOwner {
-        require(unlockTime > block.timestamp, "Unlock time gecmiste olamaz");
+        require(unlockTime > block.timestamp, "Unlock time must be in the future");
         lockUntil[to] = unlockTime;
         _transfer(msg.sender, to, amount);
         emit TokensLocked(to, unlockTime);
     }
 
     function setLock(address account, uint256 unlockTime) public onlyOwner {
-        require(unlockTime > block.timestamp, "Unlock time gecmiste olamaz");
+        require(unlockTime > block.timestamp, "Unlock time must be in the future");
         lockUntil[account] = unlockTime;
         emit TokensLocked(account, unlockTime);
     }
@@ -68,10 +68,10 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
         uint256 stepPercent,
         uint256 stepDays
     ) public onlyOwner {
-        require(stepPercent > 0 && stepPercent <= 100, "Gecersiz yuzde");
-        require(stepDays > 0, "Gecersiz adim suresi");
-        require(100 % stepPercent == 0, "100 stepPercent'e bolunebilmeli");
-        require(vesting[to].totalAmount == 0, "Vesting zaten tanimli");
+        require(stepPercent > 0 && stepPercent <= 100, "Invalid step percent");
+        require(stepDays > 0, "Invalid step duration");
+        require(100 % stepPercent == 0, "100 must be divisible by stepPercent");
+        require(vesting[to].totalAmount == 0, "Vesting already defined");
 
         vesting[to] = VestingInfo({
             totalAmount:  amount,
@@ -130,15 +130,15 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
 
             if (v.totalAmount > 0) {
                 uint256 vested = vestedAmount(from);
-                require(vested > v.released, "Henuz acilan token yok");
+                require(vested > v.released, "No tokens unlocked yet");
                 uint256 available = vested - v.released;
-                require(value <= available, "Transfer miktari acilan miktari asiyor");
+                require(value <= available, "Transfer amount exceeds unlocked balance");
                 v.released += value;
                 emit TokensReleased(from, value);
             } else {
                 require(
                     block.timestamp >= lockUntil[from],
-                    "Token kilitli: henuz transfer edilemez"
+                    "Token is locked: transfer not allowed yet"
                 );
             }
         }
