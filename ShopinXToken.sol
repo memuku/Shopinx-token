@@ -11,20 +11,15 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
 
     uint256 public constant MAX_SUPPLY = 500_000_000 * 10**18;
 
-    // Basit kilit (tek seferlik acilis)
     mapping(address => uint256) public lockUntil;
 
-    // Lineer vesting:
-    // - cliffDays gun kilitli kalir
-    // - Cliff bittikten sonra her stepDays gunluk dilimde stepPercent acilir
-    // - Her dilim icinde acilis saniye bazli lineer akar (ani acilis olmaz)
     struct VestingInfo {
-        uint256 totalAmount;  // toplam kilitli miktar
-        uint256 startTime;    // vesting baslangic zamani
-        uint256 cliffDays;    // ilk acilim icin bekleme (ornek: 30)
-        uint256 stepPercent;  // her dilimde acilacak yuzde (ornek: 10)
-        uint256 stepDays;     // dilim suresi gun cinsinden (ornek: 14)
-        uint256 released;     // simdi kadar transfer edilen miktar
+        uint256 totalAmount;
+        uint256 startTime;
+        uint256 cliffDays;
+        uint256 stepPercent;
+        uint256 stepDays;
+        uint256 released;
     }
 
     mapping(address => VestingInfo) public vesting;
@@ -43,12 +38,12 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
 
     function pause() public onlyOwner { _pause(); }
     function unpause() public onlyOwner { _unpause(); }
+
     function mint(address to, uint256 amount) public onlyOwner {
         require(totalSupply() + amount <= MAX_SUPPLY, "Max supply asiliyor");
         _mint(to, amount);
     }
 
-    // Basit kilit (tek seferlik)
     function transferWithLock(address to, uint256 amount, uint256 unlockTime) public onlyOwner {
         require(unlockTime > block.timestamp, "Unlock time gecmiste olamaz");
         lockUntil[to] = unlockTime;
@@ -66,7 +61,6 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
         return lockUntil[account] > block.timestamp;
     }
 
-    // Lineer vesting ile transfer
     function transferWithVesting(
         address to,
         uint256 amount,
@@ -77,8 +71,8 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
         require(stepPercent > 0 && stepPercent <= 100, "Gecersiz yuzde");
         require(stepDays > 0, "Gecersiz adim suresi");
         require(100 % stepPercent == 0, "100 stepPercent'e bolunebilmeli");
-
         require(vesting[to].totalAmount == 0, "Vesting zaten tanimli");
+
         vesting[to] = VestingInfo({
             totalAmount:  amount,
             startTime:    block.timestamp,
@@ -92,7 +86,6 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
         emit VestingCreated(to, amount, cliffDays, stepPercent, stepDays);
     }
 
-    // Simdi kadar acilan toplam miktar (lineer, saniye bazli)
     function vestedAmount(address account) public view returns (uint256) {
         VestingInfo memory v = vesting[account];
         if (v.totalAmount == 0) return 0;
@@ -117,7 +110,6 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
         return vestedFromCompleted + vestedFromCurrent;
     }
 
-    // Kac token su an transfer edilebilir
     function availableToTransfer(address account) public view returns (uint256) {
         VestingInfo memory v = vesting[account];
         if (v.totalAmount == 0) {
