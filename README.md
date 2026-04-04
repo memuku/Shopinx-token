@@ -1,79 +1,80 @@
 # ShopinX Token (SPX)
 
-BNB Smart Chain üzerinde BEP-20 standardında yayımlanan utility token.
+BEP-20 utility token deployed on BNB Smart Chain.
 
 ---
 
-## Token Bilgileri
+## Token Details
 
-| Alan | Detay |
-|------|-------|
-| Token Adı | ShopinX Token |
-| Sembol | SPX |
-| Ağ | BNB Smart Chain (BSC) |
-| Standart | BEP-20 |
+| Field | Details |
+|-------|---------|
+| Token Name | ShopinX Token |
+| Symbol | SPX |
+| Network | BNB Smart Chain (BSC) |
+| Standard | BEP-20 |
+| Initial Supply | 200,000,000 SPX |
 | Max Supply | 500,000,000 SPX |
-| Altyapı | Solidity 0.8.27, OpenZeppelin v5 |
+| Infrastructure | Solidity 0.8.27, OpenZeppelin v5 |
 
 ---
 
-## Contract Adresi
+## Contract Address
 
-> Mainnet deploy yakında — adres buraya eklenecek.
+> Mainnet deployment coming soon.
 
 ---
 
-## Özellikler
+## Features
 
-- **Linear Vesting** — Cliff + adım bazlı token açılımı (saniye hassasiyetli)
-- **Pausable** — Acil durum durdurma mekanizması
-- **Burnable** — Token yakma desteği
-- **ERC20Permit** — Gasless approval desteği
-- **Max Supply** — 500M SPX sınırı, aşılamaz
+- **Linear Vesting** — Cliff + step-based token unlock (second-level precision)
+- **Pausable** — Emergency stop mechanism
+- **Burnable** — Token burn support
+- **ERC20Permit** — Gasless approval support
+- **Max Supply Cap** — Hard cap at 500M SPX, cannot be exceeded
 
 ---
 
 ## Tokenomics
 
-| Kategori | Yüzde | Miktar |
-|----------|-------|--------|
-| Müşteri Dağıtımı | %45 | 90,000,000 SPX |
-| Satış / Likidite | %25 | 50,000,000 SPX |
-| Ekip | %10 | 20,000,000 SPX |
-| Pazarlama | %10 | 20,000,000 SPX |
-| Rezerv | %10 | 20,000,000 SPX |
+| Category | Percentage | Amount |
+|----------|------------|--------|
+| Customer Distribution | 45% | 90,000,000 SPX |
+| Sales / Liquidity | 25% | 50,000,000 SPX |
+| Team | 10% | 20,000,000 SPX |
+| Marketing | 10% | 20,000,000 SPX |
+| Reserve | 10% | 20,000,000 SPX |
 
 ---
 
-## Vesting Mekanizması
+## Vesting Mechanism
 
-- **Cliff:** 30 gün (token açılmaz)
-- **Açılım:** Her 14 günde %10 (lineer, saniye bazlı)
-- **Tam açılım:** 170 günde tamamlanır
-- Smart contract içinde otomatik, müdahale edilemez
+- **Cliff:** 30 days (no tokens unlock)
+- **Unlock:** 10% every 14 days (linear, second-based)
+- **Full unlock:** Completed in 170 days
+- Fully automated within the smart contract, no manual intervention possible
 
 ---
 
-## Güvenlik
+## Security
 
-- OpenZeppelin v5 altyapısı
-- Reentrancy açığı yok
-- Sınırsız mint yok (MAX_SUPPLY = 500M)
-- Vesting çift atama koruması
-- SolidProof audit süreci devam ediyor
+- OpenZeppelin v5 base
+- No reentrancy vulnerabilities
+- Hard mint cap (MAX_SUPPLY = 500M)
+- Double vesting assignment protection
+- SolidProof audit in progress
 
 ---
 
 ## Audit
 
-> SolidProof audit raporu tamamlandığında buraya eklenecek.
+> SolidProof audit report will be added here upon completion.
 
 ---
 
-## Bağlantılar
+## Links
 
-- Website: Yakında
-- Swap: Yakında
-- BSCScan: Yakında
-- Twitter/X: Yakında
-- Telegram: Yakında
+- Website: Coming soon
+- Swap: Coming soon
+- BSCScan: Coming soon
+- Twitter/X: Coming soon
+- Telegram: Coming soon
