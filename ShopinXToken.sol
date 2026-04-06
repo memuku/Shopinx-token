@@ -16,14 +16,13 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         uint256 cliffDays;
         uint256 stepPercent;
         uint256 stepDays;
-        uint256 released;
     }
 
     mapping(address => VestingInfo) public vesting;
 
     event TokensLocked(address indexed account, uint256 unlockTime);
     event VestingCreated(address indexed account, uint256 totalAmount, uint256 cliffDays, uint256 stepPercent, uint256 stepDays);
-    event TokensReleased(address indexed account, uint256 amount);
+
 
     constructor(address recipient, address initialOwner)
         ERC20("ShopinX Token", "SPX")
@@ -67,8 +66,7 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
             startTime:    block.timestamp,
             cliffDays:    cliffDays,
             stepPercent:  stepPercent,
-            stepDays:     stepDays,
-            released:     0
+            stepDays:     stepDays
         });
 
         _transfer(msg.sender, to, amount);
@@ -106,8 +104,10 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
             return 0;
         }
         uint256 vested = vestedAmount(account);
-        if (vested <= v.released) return 0;
-        return vested - v.released;
+        uint256 locked = v.totalAmount - vested;
+        uint256 balance = balanceOf(account);
+        if (balance <= locked) return 0;
+        return balance - locked;
     }
 
     function _update(address from, address to, uint256 value)
@@ -118,12 +118,8 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
             VestingInfo storage v = vesting[from];
 
             if (v.totalAmount > 0) {
-                uint256 vested = vestedAmount(from);
-                require(vested > v.released, "No tokens unlocked yet");
-                uint256 available = vested - v.released;
-                require(value <= available, "Transfer amount exceeds unlocked balance");
-                v.released += value;
-                emit TokensReleased(from, value);
+                uint256 locked = v.totalAmount - vestedAmount(from);
+                require(balanceOf(from) >= value + locked, "Transfer amount exceeds unlocked balance");
             } else {
                 require(
                     block.timestamp >= lockUntil[from],
