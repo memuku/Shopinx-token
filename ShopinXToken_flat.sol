@@ -1,4 +1,4 @@
-[dotenv@17.2.4] injecting env (29) from .env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+[dotenv@17.2.4] injecting env (29) from .env -- tip: ⚙️  enable debug logging with { debug: true }
 // Sources flattened with hardhat v2.26.5 https://hardhat.org
 
 // SPDX-License-Identifier: MIT
@@ -758,155 +758,6 @@ abstract contract ERC20Burnable is Context, ERC20 {
     function burnFrom(address account, uint256 value) public virtual {
         _spendAllowance(account, _msgSender(), value);
         _burn(account, value);
-    }
-}
-
-
-// File @openzeppelin/contracts/utils/Pausable.sol@v5.5.0
-
-// Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.3.0) (utils/Pausable.sol)
-
-pragma solidity ^0.8.20;
-
-/**
- * @dev Contract module which allows children to implement an emergency stop
- * mechanism that can be triggered by an authorized account.
- *
- * This module is used through inheritance. It will make available the
- * modifiers `whenNotPaused` and `whenPaused`, which can be applied to
- * the functions of your contract. Note that they will not be pausable by
- * simply including this module, only once the modifiers are put in place.
- */
-abstract contract Pausable is Context {
-    bool private _paused;
-
-    /**
-     * @dev Emitted when the pause is triggered by `account`.
-     */
-    event Paused(address account);
-
-    /**
-     * @dev Emitted when the pause is lifted by `account`.
-     */
-    event Unpaused(address account);
-
-    /**
-     * @dev The operation failed because the contract is paused.
-     */
-    error EnforcedPause();
-
-    /**
-     * @dev The operation failed because the contract is not paused.
-     */
-    error ExpectedPause();
-
-    /**
-     * @dev Modifier to make a function callable only when the contract is not paused.
-     *
-     * Requirements:
-     *
-     * - The contract must not be paused.
-     */
-    modifier whenNotPaused() {
-        _requireNotPaused();
-        _;
-    }
-
-    /**
-     * @dev Modifier to make a function callable only when the contract is paused.
-     *
-     * Requirements:
-     *
-     * - The contract must be paused.
-     */
-    modifier whenPaused() {
-        _requirePaused();
-        _;
-    }
-
-    /**
-     * @dev Returns true if the contract is paused, and false otherwise.
-     */
-    function paused() public view virtual returns (bool) {
-        return _paused;
-    }
-
-    /**
-     * @dev Throws if the contract is paused.
-     */
-    function _requireNotPaused() internal view virtual {
-        if (paused()) {
-            revert EnforcedPause();
-        }
-    }
-
-    /**
-     * @dev Throws if the contract is not paused.
-     */
-    function _requirePaused() internal view virtual {
-        if (!paused()) {
-            revert ExpectedPause();
-        }
-    }
-
-    /**
-     * @dev Triggers stopped state.
-     *
-     * Requirements:
-     *
-     * - The contract must not be paused.
-     */
-    function _pause() internal virtual whenNotPaused {
-        _paused = true;
-        emit Paused(_msgSender());
-    }
-
-    /**
-     * @dev Returns to normal state.
-     *
-     * Requirements:
-     *
-     * - The contract must be paused.
-     */
-    function _unpause() internal virtual whenPaused {
-        _paused = false;
-        emit Unpaused(_msgSender());
-    }
-}
-
-
-// File @openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol@v5.5.0
-
-// Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/extensions/ERC20Pausable.sol)
-
-pragma solidity ^0.8.20;
-
-
-/**
- * @dev ERC-20 token with pausable token transfers, minting and burning.
- *
- * Useful for scenarios such as preventing trades until the end of an evaluation
- * period, or having an emergency switch for freezing all token transfers in the
- * event of a large bug.
- *
- * IMPORTANT: This contract does not include public pause and unpause functions. In
- * addition to inheriting this contract, you must define both functions, invoking the
- * {Pausable-_pause} and {Pausable-_unpause} internal functions, with appropriate
- * access control, e.g. using {AccessControl} or {Ownable}. Not doing so will
- * make the contract pause mechanism of the contract unreachable, and thus unusable.
- */
-abstract contract ERC20Pausable is ERC20, Pausable {
-    /**
-     * @dev See {ERC20-_update}.
-     *
-     * Requirements:
-     *
-     * - the contract must not be paused.
-     */
-    function _update(address from, address to, uint256 value) internal virtual override whenNotPaused {
-        super._update(from, to, value);
     }
 }
 
@@ -4810,10 +4661,7 @@ pragma solidity ^0.8.27;
 
 
 
-
-contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Permit {
-
-    uint256 public constant MAX_SUPPLY = 500_000_000 * 10**18;
+contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
 
     mapping(address => uint256) public lockUntil;
 
@@ -4837,15 +4685,7 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
         Ownable(initialOwner)
         ERC20Permit("ShopinX Token")
     {
-        _mint(recipient, 200000000 * 10 ** decimals());
-    }
-
-    function pause() public onlyOwner { _pause(); }
-    function unpause() public onlyOwner { _unpause(); }
-
-    function mint(address to, uint256 amount) public onlyOwner {
-        require(totalSupply() + amount <= MAX_SUPPLY, "Max supply exceeded");
-        _mint(to, amount);
+        _mint(recipient, 500_000_000 * 10 ** decimals());
     }
 
     function transferWithLock(address to, uint256 amount, uint256 unlockTime) public onlyOwner {
@@ -4927,7 +4767,7 @@ contract ShopinXToken is ERC20, ERC20Burnable, ERC20Pausable, Ownable, ERC20Perm
 
     function _update(address from, address to, uint256 value)
         internal
-        override(ERC20, ERC20Pausable)
+        override(ERC20)
     {
         if (from != address(0) && from != owner()) {
             VestingInfo storage v = vesting[from];
