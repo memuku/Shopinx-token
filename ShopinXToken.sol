@@ -29,7 +29,7 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         Ownable(initialOwner)
         ERC20Permit("ShopinX Token")
     {
-        _mint(recipient, 500_000_000 * 10 ** decimals());
+        _mint(recipient, 300_000_000 * 10 ** decimals());
     }
 
     function transferWithLock(address to, uint256 amount, uint256 unlockTime) public onlyOwner {
