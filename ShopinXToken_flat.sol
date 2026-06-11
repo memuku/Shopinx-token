@@ -4688,7 +4688,6 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
 
     function transferWithLock(address to, uint256 amount, uint256 unlockTime) public onlyOwner {
         require(unlockTime > block.timestamp, "Unlock time must be in the future");
-        require(unlockTime > lockUntil[to], "Cannot reduce existing lock");
         lockUntil[to] = unlockTime;
         _transfer(msg.sender, to, amount);
         emit TokensLocked(to, unlockTime);
@@ -4696,7 +4695,6 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
 
     function setLock(address account, uint256 unlockTime) public onlyOwner {
         require(unlockTime > block.timestamp, "Unlock time must be in the future");
-        require(unlockTime > lockUntil[account], "Cannot reduce existing lock");
         lockUntil[account] = unlockTime;
         emit TokensLocked(account, unlockTime);
     }
@@ -4770,15 +4768,17 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         internal
         override(ERC20)
     {
-        if (from != address(0)) {
-            require(
-                block.timestamp >= lockUntil[from],
-                "Token is locked: transfer not allowed yet"
-            );
+        if (from != address(0) && from != owner()) {
             VestingInfo storage v = vesting[from];
+
             if (v.totalAmount > 0) {
                 uint256 locked = v.totalAmount - vestedAmount(from);
                 require(balanceOf(from) >= value + locked, "Transfer amount exceeds unlocked balance");
+            } else {
+                require(
+                    block.timestamp >= lockUntil[from],
+                    "Token is locked: transfer not allowed yet"
+                );
             }
         }
         super._update(from, to, value);
