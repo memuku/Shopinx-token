@@ -1,4 +1,3 @@
-[dotenv@17.2.4] injecting env (29) from .env -- tip: ⚙️  enable debug logging with { debug: true }
 // Sources flattened with hardhat v2.26.5 https://hardhat.org
 
 // SPDX-License-Identifier: MIT
@@ -4657,12 +4656,7 @@ abstract contract ERC20Permit is ERC20, IERC20Permit, EIP712, Nonces {
 
 // Original license: SPDX_License_Identifier: MIT
 pragma solidity ^0.8.27;
-
-
-
-
 contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
-
     mapping(address => uint256) public lockUntil;
 
     struct VestingInfo {
@@ -4676,25 +4670,46 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
     mapping(address => VestingInfo) public vesting;
 
     event TokensLocked(address indexed account, uint256 unlockTime);
-    event VestingCreated(address indexed account, uint256 totalAmount, uint256 cliffDays, uint256 stepPercent, uint256 stepDays);
+    event VestingCreated(
+        address indexed account,
+        uint256 totalAmount,
+        uint256 cliffDays,
+        uint256 stepPercent,
+        uint256 stepDays
+    );
 
-    constructor(address recipient, address initialOwner)
+    constructor(
+        address recipient,
+        address initialOwner
+    )
         ERC20("ShopinX Token", "SPX")
         Ownable(initialOwner)
         ERC20Permit("ShopinX Token")
     {
-        _mint(recipient, 500_000_000 * 10 ** decimals());
+        _mint(recipient, 1_000_000_000 * 10 ** decimals());
     }
 
-    function transferWithLock(address to, uint256 amount, uint256 unlockTime) public onlyOwner {
-        require(unlockTime > block.timestamp, "Unlock time must be in the future");
+    function transferWithLock(
+        address to,
+        uint256 amount,
+        uint256 unlockTime
+    ) public onlyOwner {
+        require(
+            unlockTime > block.timestamp,
+            "Unlock time must be in the future"
+        );
+        require(unlockTime > lockUntil[to], "Cannot reduce existing lock");
         lockUntil[to] = unlockTime;
         _transfer(msg.sender, to, amount);
         emit TokensLocked(to, unlockTime);
     }
 
     function setLock(address account, uint256 unlockTime) public onlyOwner {
-        require(unlockTime > block.timestamp, "Unlock time must be in the future");
+        require(
+            unlockTime > block.timestamp,
+            "Unlock time must be in the future"
+        );
+        require(unlockTime > lockUntil[account], "Cannot reduce existing lock");
         lockUntil[account] = unlockTime;
         emit TokensLocked(account, unlockTime);
     }
@@ -4716,11 +4731,11 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         require(vesting[to].totalAmount == 0, "Vesting already defined");
 
         vesting[to] = VestingInfo({
-            totalAmount:  amount,
-            startTime:    block.timestamp,
-            cliffDays:    cliffDays,
-            stepPercent:  stepPercent,
-            stepDays:     stepDays
+            totalAmount: amount,
+            startTime: block.timestamp,
+            cliffDays: cliffDays,
+            stepPercent: stepPercent,
+            stepDays: stepDays
         });
 
         _transfer(msg.sender, to, amount);
@@ -4731,30 +4746,36 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         VestingInfo memory v = vesting[account];
         if (v.totalAmount == 0) return 0;
 
-        uint256 elapsed      = block.timestamp - v.startTime;
+        uint256 elapsed = block.timestamp - v.startTime;
         uint256 cliffSeconds = v.cliffDays * 1 days;
 
         if (elapsed < cliffSeconds) return 0;
 
-        uint256 afterCliff  = elapsed - cliffSeconds;
+        uint256 afterCliff = elapsed - cliffSeconds;
         uint256 stepSeconds = v.stepDays * 1 days;
-        uint256 totalSteps  = 100 / v.stepPercent;
+        uint256 totalSteps = 100 / v.stepPercent;
 
         uint256 completedSteps = afterCliff / stepSeconds;
         if (completedSteps >= totalSteps) return v.totalAmount;
 
-        uint256 vestedFromCompleted = (v.totalAmount * completedSteps * v.stepPercent) / 100;
-        uint256 currentStepElapsed  = afterCliff % stepSeconds;
-        uint256 currentStepAmount   = (v.totalAmount * v.stepPercent) / 100;
-        uint256 vestedFromCurrent   = (currentStepAmount * currentStepElapsed) / stepSeconds;
+        uint256 vestedFromCompleted = (v.totalAmount *
+            completedSteps *
+            v.stepPercent) / 100;
+        uint256 currentStepElapsed = afterCliff % stepSeconds;
+        uint256 currentStepAmount = (v.totalAmount * v.stepPercent) / 100;
+        uint256 vestedFromCurrent = (currentStepAmount * currentStepElapsed) /
+            stepSeconds;
 
         return vestedFromCompleted + vestedFromCurrent;
     }
 
-    function availableToTransfer(address account) public view returns (uint256) {
+    function availableToTransfer(
+        address account
+    ) public view returns (uint256) {
         VestingInfo memory v = vesting[account];
         if (v.totalAmount == 0) {
-            if (block.timestamp >= lockUntil[account]) return balanceOf(account);
+            if (block.timestamp >= lockUntil[account])
+                return balanceOf(account);
             return 0;
         }
         uint256 vested = vestedAmount(account);
@@ -4764,20 +4785,22 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         return balance - locked;
     }
 
-    function _update(address from, address to, uint256 value)
-        internal
-        override(ERC20)
-    {
-        if (from != address(0) && from != owner()) {
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override(ERC20) {
+        if (from != address(0)) {
+            require(
+                block.timestamp >= lockUntil[from],
+                "Token is locked: transfer not allowed yet"
+            );
             VestingInfo storage v = vesting[from];
-
             if (v.totalAmount > 0) {
                 uint256 locked = v.totalAmount - vestedAmount(from);
-                require(balanceOf(from) >= value + locked, "Transfer amount exceeds unlocked balance");
-            } else {
                 require(
-                    block.timestamp >= lockUntil[from],
-                    "Token is locked: transfer not allowed yet"
+                    balanceOf(from) >= value + locked,
+                    "Transfer amount exceeds unlocked balance"
                 );
             }
         }
