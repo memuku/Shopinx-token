@@ -1,3 +1,4 @@
+[dotenv@17.2.4] injecting env (31) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
 // Sources flattened with hardhat v2.26.5 https://hardhat.org
 
 // SPDX-License-Identifier: MIT
@@ -132,6 +133,75 @@ abstract contract Ownable is Context {
         address oldOwner = _owner;
         _owner = newOwner;
         emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
+
+
+// File @openzeppelin/contracts/access/Ownable2Step.sol@v5.5.0
+
+// Original license: SPDX_License_Identifier: MIT
+// OpenZeppelin Contracts (last updated v5.1.0) (access/Ownable2Step.sol)
+
+pragma solidity ^0.8.20;
+
+/**
+ * @dev Contract module which provides access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * This extension of the {Ownable} contract includes a two-step mechanism to transfer
+ * ownership, where the new owner must call {acceptOwnership} in order to replace the
+ * old one. This can help prevent common mistakes, such as transfers of ownership to
+ * incorrect accounts, or to contracts that are unable to interact with the
+ * permission system.
+ *
+ * The initial owner is specified at deployment time in the constructor for `Ownable`. This
+ * can later be changed with {transferOwnership} and {acceptOwnership}.
+ *
+ * This module is used through inheritance. It will make available all functions
+ * from parent (Ownable).
+ */
+abstract contract Ownable2Step is Ownable {
+    address private _pendingOwner;
+
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+
+    /**
+     * @dev Returns the address of the pending owner.
+     */
+    function pendingOwner() public view virtual returns (address) {
+        return _pendingOwner;
+    }
+
+    /**
+     * @dev Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is one.
+     * Can only be called by the current owner.
+     *
+     * Setting `newOwner` to the zero address is allowed; this can be used to cancel an initiated ownership transfer.
+     */
+    function transferOwnership(address newOwner) public virtual override onlyOwner {
+        _pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner(), newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`) and deletes any pending owner.
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal virtual override {
+        delete _pendingOwner;
+        super._transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev The new owner accepts the ownership transfer.
+     */
+    function acceptOwnership() public virtual {
+        address sender = _msgSender();
+        if (pendingOwner() != sender) {
+            revert OwnableUnauthorizedAccount(sender);
+        }
+        _transferOwnership(sender);
     }
 }
 
@@ -4655,21 +4725,40 @@ abstract contract ERC20Permit is ERC20, IERC20Permit, EIP712, Nonces {
 // File contracts/ShopinXToken.sol
 
 // Original license: SPDX_License_Identifier: MIT
-pragma solidity ^0.8.27;
-contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
-    mapping(address => uint256) public lockUntil;
+pragma solidity 0.8.27;
 
+
+
+
+contract ShopinXToken is ERC20, ERC20Burnable, Ownable2Step, ERC20Permit {
+
+    // Named constants
+    uint256 public constant INITIAL_SUPPLY  = 1_000_000_000e18;
+    uint256 public constant MAX_LOCK_DURATION = 4 * 365 days;
+    uint256 public constant MAX_CLIFF_DAYS  = 36500;
+    uint256 public constant MAX_STEP_DAYS   = 36500;
+    uint256 public constant PERCENT_BASE    = 100;
+
+    // Full-address freeze (setLock) — blocks ALL outgoing transfers
+    mapping(address => uint256) public freezeUntil;
+
+    // Amount-based lock (transferWithLock) — blocks only the locked tranche
+    mapping(address => uint256) public lockedAmount;
+    mapping(address => uint256) public lockedUntil;
+
+    // Zero totalAmount is the sentinel for "no schedule set"
     struct VestingInfo {
-        uint256 totalAmount;
-        uint256 startTime;
-        uint256 cliffDays;
-        uint256 stepPercent;
-        uint256 stepDays;
+        uint128 totalAmount;
+        uint32  startTime;
+        uint32  cliffDays;
+        uint32  stepPercent;
+        uint32  stepDays;
     }
 
     mapping(address => VestingInfo) public vesting;
 
-    event TokensLocked(address indexed account, uint256 unlockTime);
+    event TokensFreezed(address indexed account, uint256 until);
+    event TokensLocked(address indexed account, uint256 amount, uint256 unlockTime);
     event VestingCreated(
         address indexed account,
         uint256 totalAmount,
@@ -4678,45 +4767,60 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         uint256 stepDays
     );
 
-    constructor(
-        address recipient,
-        address initialOwner
-    )
+    // recipient: initial 1B token holder (treasury / deployer wallet)
+    // initialOwner: administrative key (multisig recommended)
+    constructor(address recipient, address initialOwner)
         ERC20("ShopinX Token", "SPX")
         Ownable(initialOwner)
         ERC20Permit("ShopinX Token")
     {
-        _mint(recipient, 1_000_000_000 * 10 ** decimals());
+        _mint(recipient, INITIAL_SUPPLY);
     }
 
+    // Prevent accidental permanent loss of all administrative functions
+    function renounceOwnership() public pure override(Ownable) {
+        revert("Ownership cannot be renounced");
+    }
+
+    // ─── Lock primitives ────────────────────────────────────────────────────
+
+    // Freeze entire balance of account until unlockTime (max 4 years)
+    function setLock(address account, uint256 unlockTime) external onlyOwner {
+        require(account != address(0), "Invalid address");
+        require(unlockTime > block.timestamp, "Unlock time must be in the future");
+        require(unlockTime <= block.timestamp + MAX_LOCK_DURATION, "Lock duration too long");
+        freezeUntil[account] = unlockTime;
+        emit TokensFreezed(account, unlockTime);
+    }
+
+    // Remove full-address freeze (owner can correct mistakes)
+    function removeLock(address account) external onlyOwner {
+        freezeUntil[account] = 0;
+        emit TokensFreezed(account, 0);
+    }
+
+    // Transfer + lock only the transferred amount (not the recipient's pre-existing balance)
     function transferWithLock(
         address to,
         uint256 amount,
         uint256 unlockTime
-    ) public onlyOwner {
-        require(
-            unlockTime > block.timestamp,
-            "Unlock time must be in the future"
-        );
-        require(unlockTime > lockUntil[to], "Cannot reduce existing lock");
-        lockUntil[to] = unlockTime;
+    ) external onlyOwner {
+        require(to != address(0), "Invalid address");
+        require(amount > 0, "Amount must be positive");
+        require(unlockTime > block.timestamp, "Unlock time must be in the future");
+        require(unlockTime <= block.timestamp + MAX_LOCK_DURATION, "Lock duration too long");
+        lockedAmount[to] = amount;
+        lockedUntil[to]  = unlockTime;
         _transfer(msg.sender, to, amount);
-        emit TokensLocked(to, unlockTime);
+        emit TokensLocked(to, amount, unlockTime);
     }
 
-    function setLock(address account, uint256 unlockTime) public onlyOwner {
-        require(
-            unlockTime > block.timestamp,
-            "Unlock time must be in the future"
-        );
-        require(unlockTime > lockUntil[account], "Cannot reduce existing lock");
-        lockUntil[account] = unlockTime;
-        emit TokensLocked(account, unlockTime);
+    function isLocked(address account) external view returns (bool) {
+        return freezeUntil[account] > block.timestamp ||
+               (lockedUntil[account] > block.timestamp && lockedAmount[account] > 0);
     }
 
-    function isLocked(address account) public view returns (bool) {
-        return lockUntil[account] > block.timestamp;
-    }
+    // ─── Vesting ────────────────────────────────────────────────────────────
 
     function transferWithVesting(
         address to,
@@ -4724,18 +4828,21 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         uint256 cliffDays,
         uint256 stepPercent,
         uint256 stepDays
-    ) public onlyOwner {
-        require(stepPercent > 0 && stepPercent <= 100, "Invalid step percent");
-        require(stepDays > 0, "Invalid step duration");
-        require(100 % stepPercent == 0, "100 must be divisible by stepPercent");
+    ) external onlyOwner {
+        require(to != address(0), "Invalid address");
+        require(amount > 0, "Amount must be positive");
+        require(stepPercent > 0 && stepPercent <= PERCENT_BASE, "Invalid step percent");
+        require(stepDays > 0 && stepDays <= MAX_STEP_DAYS, "Invalid step duration");
+        require(cliffDays <= MAX_CLIFF_DAYS, "Cliff too long");
+        require(PERCENT_BASE % stepPercent == 0, "100 must be divisible by stepPercent");
         require(vesting[to].totalAmount == 0, "Vesting already defined");
 
         vesting[to] = VestingInfo({
-            totalAmount: amount,
-            startTime: block.timestamp,
-            cliffDays: cliffDays,
-            stepPercent: stepPercent,
-            stepDays: stepDays
+            totalAmount: uint128(amount),
+            startTime:   uint32(block.timestamp),
+            cliffDays:   uint32(cliffDays),
+            stepPercent: uint32(stepPercent),
+            stepDays:    uint32(stepDays)
         });
 
         _transfer(msg.sender, to, amount);
@@ -4746,44 +4853,50 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         VestingInfo memory v = vesting[account];
         if (v.totalAmount == 0) return 0;
 
-        uint256 elapsed = block.timestamp - v.startTime;
-        uint256 cliffSeconds = v.cliffDays * 1 days;
-
+        uint256 elapsed      = block.timestamp - uint256(v.startTime);
+        uint256 cliffSeconds = uint256(v.cliffDays) * 1 days;
         if (elapsed < cliffSeconds) return 0;
 
-        uint256 afterCliff = elapsed - cliffSeconds;
-        uint256 stepSeconds = v.stepDays * 1 days;
-        uint256 totalSteps = 100 / v.stepPercent;
+        uint256 afterCliff  = elapsed - cliffSeconds;
+        uint256 stepSeconds = uint256(v.stepDays) * 1 days;
+        uint256 totalSteps  = PERCENT_BASE / uint256(v.stepPercent);
 
         uint256 completedSteps = afterCliff / stepSeconds;
-        if (completedSteps >= totalSteps) return v.totalAmount;
+        if (completedSteps >= totalSteps) return uint256(v.totalAmount);
 
-        uint256 vestedFromCompleted = (v.totalAmount *
-            completedSteps *
-            v.stepPercent) / 100;
-        uint256 currentStepElapsed = afterCliff % stepSeconds;
-        uint256 currentStepAmount = (v.totalAmount * v.stepPercent) / 100;
-        uint256 vestedFromCurrent = (currentStepAmount * currentStepElapsed) /
-            stepSeconds;
+        // Multiply before divide to minimise precision loss
+        uint256 vestedFromCompleted = (uint256(v.totalAmount) * completedSteps * uint256(v.stepPercent)) / PERCENT_BASE;
+        // Deterministic time-interpolation within the current step (not randomness)
+        uint256 currentStepElapsed  = afterCliff % stepSeconds;
+        uint256 vestedFromCurrent   = (uint256(v.totalAmount) * uint256(v.stepPercent) * currentStepElapsed) / (PERCENT_BASE * stepSeconds);
 
         return vestedFromCompleted + vestedFromCurrent;
     }
 
-    function availableToTransfer(
-        address account
-    ) public view returns (uint256) {
-        VestingInfo memory v = vesting[account];
-        if (v.totalAmount == 0) {
-            if (block.timestamp >= lockUntil[account])
-                return balanceOf(account);
-            return 0;
-        }
-        uint256 vested = vestedAmount(account);
-        uint256 locked = v.totalAmount - vested;
+    // Returns how many tokens account can transfer right now
+    function availableToTransfer(address account) external view returns (uint256) {
+        // Full-address freeze takes priority
+        if (block.timestamp < freezeUntil[account]) return 0;
+
         uint256 balance = balanceOf(account);
-        if (balance <= locked) return 0;
-        return balance - locked;
+
+        uint256 amountLocked = 0;
+        if (lockedUntil[account] > block.timestamp) {
+            amountLocked = lockedAmount[account];
+        }
+
+        VestingInfo memory v = vesting[account];
+        uint256 vestingLocked = 0;
+        if (v.totalAmount > 0) {
+            vestingLocked = uint256(v.totalAmount) - vestedAmount(account);
+        }
+
+        uint256 totalLocked = amountLocked + vestingLocked;
+        if (balance <= totalLocked) return 0;
+        return balance - totalLocked;
     }
+
+    // ─── Transfer gate ──────────────────────────────────────────────────────
 
     function _update(
         address from,
@@ -4791,15 +4904,33 @@ contract ShopinXToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
         uint256 value
     ) internal override(ERC20) {
         if (from != address(0)) {
-            require(
-                block.timestamp >= lockUntil[from],
-                "Token is locked: transfer not allowed yet"
-            );
-            VestingInfo storage v = vesting[from];
-            if (v.totalAmount > 0) {
-                uint256 locked = v.totalAmount - vestedAmount(from);
+            bool isBurn = (to == address(0));
+
+            // Full-address freeze — burns are allowed so holders can always destroy unlocked tokens
+            if (!isBurn) {
                 require(
-                    balanceOf(from) >= value + locked,
+                    block.timestamp >= freezeUntil[from],
+                    "Token is frozen: transfer not allowed yet"
+                );
+            }
+
+            // Amount-based lock (only blocks the locked tranche)
+            uint256 amountLocked = 0;
+            if (lockedUntil[from] > block.timestamp) {
+                amountLocked = lockedAmount[from];
+            }
+
+            // Vesting lien (fungible reserve against total balance)
+            VestingInfo storage v = vesting[from];
+            uint256 vestingLocked = 0;
+            if (v.totalAmount > 0) {
+                vestingLocked = uint256(v.totalAmount) - vestedAmount(from);
+            }
+
+            uint256 totalLocked = amountLocked + vestingLocked;
+            if (totalLocked > 0) {
+                require(
+                    balanceOf(from) >= value + totalLocked,
                     "Transfer amount exceeds unlocked balance"
                 );
             }
