@@ -1,4 +1,3 @@
-[dotenv@17.2.4] injecting env (31) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
 // Sources flattened with hardhat v2.26.5 https://hardhat.org
 
 // SPDX-License-Identifier: MIT
